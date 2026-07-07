@@ -1,0 +1,38 @@
+# 네이버 매물: 하루 3회 (KST 08:00 / 13:00 / 20:00)
+# 국토부 실거래: 저녁 1회만 (신고가 계약 후 30일 이내라 하루 1번이면 충분)
+name: collect
+
+on:
+  schedule:
+    - cron: "0 23 * * *" # 08:00 KST
+    - cron: "0 4 * * *"  # 13:00 KST
+    - cron: "0 11 * * *" # 20:00 KST (실거래 포함)
+  workflow_dispatch:
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Collect Naver listings
+        run: npx tsx scripts/collect-naver.ts
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      - name: Collect MOLIT trades
+        # 저녁 스케줄과 수동 실행에서만 (매물 수집이 실패해도 실행)
+        if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '0 11 * * *')
+        run: npx tsx scripts/collect-trades.ts
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
