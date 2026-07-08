@@ -70,11 +70,13 @@ async function main() {
   const runId = Number(runRs.rows[0].id);
 
   try {
+    // 활성 지역(regions.active=1)의 단지만 대상 (비활성 지역 제외)
     const complexesRs = await db.execute({
       sql: opts.city
         ? `SELECT c.complex_no, c.name, c.lat, c.lng FROM complexes c
-           JOIN regions r ON r.cortar_no = c.cortar_no WHERE r.city = ?`
-        : `SELECT complex_no, name, lat, lng FROM complexes`,
+           JOIN regions r ON r.cortar_no = c.cortar_no WHERE r.active = 1 AND r.city = ?`
+        : `SELECT c.complex_no, c.name, c.lat, c.lng FROM complexes c
+           JOIN regions r ON r.cortar_no = c.cortar_no WHERE r.active = 1`,
       args: opts.city ? [opts.city] : [],
     });
     const ours = complexesRs.rows as unknown as OurComplex[];
