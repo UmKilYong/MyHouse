@@ -22,11 +22,12 @@ import {
 } from "./lib/naver-client";
 import type { Client, InStatement } from "@libsql/client";
 
-// 수집 대상: 광명, 안양, 인천, 서울, 고양
+// 수집 대상: 서울, 인천 + 경기(광명·안양·고양·부천·군포·의왕)
+// 제외 지역은 regions.active=0으로 관리 (예: 강남·서초·송파·용산구)
 const TARGETS = [
   { seedCortarNo: "1100000000", city: "서울특별시", cityFilter: null as string[] | null },
   { seedCortarNo: "2800000000", city: "인천광역시", cityFilter: null },
-  { seedCortarNo: "4100000000", city: "경기도", cityFilter: ["광명시", "안양시", "고양시"] },
+  { seedCortarNo: "4100000000", city: "경기도", cityFilter: ["광명시", "안양시", "고양시", "부천시", "군포시", "의왕시"] },
 ];
 
 const MAX_ARTICLE_PAGES = 60;

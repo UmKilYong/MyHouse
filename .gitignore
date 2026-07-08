@@ -43,3 +43,6 @@ next-env.d.ts
 # local sqlite db
 /data/
 !.env.example
+
+# CI(npm ci)에 필요 — 전역 gitignore가 무시하므로 명시적으로 추적
+!package-lock.json
