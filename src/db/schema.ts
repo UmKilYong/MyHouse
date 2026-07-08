@@ -130,8 +130,24 @@ export const SCHEMA_STATEMENTS: string[] = [
   )`,
 ];
 
+// 기존 테이블에 추가된 컬럼 (없으면 추가, 있으면 무시)
+const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  {
+    table: "regions",
+    column: "last_collected_at",
+    ddl: `ALTER TABLE regions ADD COLUMN last_collected_at TEXT`,
+  },
+];
+
 export async function ensureSchema(db: Client): Promise<void> {
   for (const stmt of SCHEMA_STATEMENTS) {
     await db.execute(stmt);
+  }
+  for (const m of COLUMN_MIGRATIONS) {
+    try {
+      await db.execute(m.ddl);
+    } catch (e) {
+      if (!String(e).includes("duplicate column")) throw e;
+    }
   }
 }

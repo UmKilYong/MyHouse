@@ -5,6 +5,7 @@
  *   npm run collect:naver                  # 전체 대상 지역 수집
  *   npm run collect:naver -- --city 광명시  # 특정 시만
  *   npm run collect:naver -- --refresh-regions  # 지역/동 목록 재발견
+ *   npm run collect:naver -- --resume           # 최근(24h, RESUME_WINDOW_HOURS) 수집된 동은 건너뛰기
  *
  * 흐름: 대상 시(5개) → 구 → 동(regions) → 동별 단지 목록 → 단지별 매물
  * 수집 후 complex_area_stats(호가 집계)와 complex_daily_stats(일별 스냅샷) 갱신.
@@ -39,6 +40,7 @@ function parseArgs() {
   return {
     city: get("--city"),
     refreshRegions: args.includes("--refresh-regions"),
+    resume: args.includes("--resume"),
     maxComplexes: get("--max-complexes") ? Number(get("--max-complexes")) : undefined,
   };
 }
@@ -225,10 +227,16 @@ async function main() {
       await discoverRegions(db);
     }
 
+    // --resume: 최근(기본 24시간) 수집 완료된 동은 건너뛴다
+    const resumeWindowH = Number(process.env.RESUME_WINDOW_HOURS || 24);
+    const resumeCutoff = new Date(Date.now() - resumeWindowH * 3600 * 1000).toISOString();
+    const resumeCond = opts.resume
+      ? ` AND (last_collected_at IS NULL OR last_collected_at < '${resumeCutoff}')`
+      : "";
     const regionsRs = await db.execute({
       sql: opts.city
-        ? `SELECT cortar_no, name, city, division FROM regions WHERE active=1 AND city=? ORDER BY cortar_no`
-        : `SELECT cortar_no, name, city, division FROM regions WHERE active=1 ORDER BY cortar_no`,
+        ? `SELECT cortar_no, name, city, division FROM regions WHERE active=1 AND city=?${resumeCond} ORDER BY cortar_no`
+        : `SELECT cortar_no, name, city, division FROM regions WHERE active=1${resumeCond} ORDER BY cortar_no`,
       args: opts.city ? [opts.city] : [],
     });
     const regions = regionsRs.rows as unknown as {
@@ -278,6 +286,11 @@ async function main() {
         );
       }
       totalComplexes += complexes.length;
+      // 동 단위 수집 완료 마킹 (--resume 이어하기용)
+      await db.execute({
+        sql: `UPDATE regions SET last_collected_at=? WHERE cortar_no=?`,
+        args: [nowIso(), region.cortar_no],
+      });
       console.log(
         `[${i + 1}/${regions.length}] ${region.division} ${region.name}: 단지 ${complexes.length}, 매물있는 단지 ${withDeals.length}, 누적 매물 ${totalArticles}`
       );

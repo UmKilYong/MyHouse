@@ -90,17 +90,6 @@ export default function MapApp({ ncpKeyId }: Props) {
         <span className="ml-auto text-[11px] text-slate-400">
           핀 가격 = 실제 매물 최저 호가
         </span>
-        <button
-          onClick={async () => {
-            const res = await fetch("/api/collect-trigger", { method: "POST" });
-            const d = await res.json().catch(() => null);
-            alert(res.ok ? "수집을 시작했습니다 (수 분 소요)" : d?.error ?? "트리거 실패");
-          }}
-          className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-100"
-          title="GitHub Actions 수집 워크플로우 실행"
-        >
-          지금 수집
-        </button>
       </header>
 
       <FilterBar

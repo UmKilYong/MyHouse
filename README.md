@@ -64,7 +64,6 @@ npm run collect:trades -- --sgg 41210        # 특정 시군구만
    - 첫 수집: Actions 탭 → collect → Run workflow.
 3. **Vercel** 프로젝트 연결 (Hobby 무료). 환경변수 등록:
    - `NEXT_PUBLIC_NCP_KEY_ID`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_PASSWORD`
-   - "지금 수집" 버튼을 쓰려면 `GITHUB_TOKEN`(fine-grained PAT, 해당 repo actions:write), `GITHUB_REPO`(owner/repo)도 등록.
    - NCP 콘솔의 Web Dynamic Map **서비스 URL에 Vercel 도메인 등록** 필요.
 4. 접속 → `APP_PASSWORD`로 로그인.
 
