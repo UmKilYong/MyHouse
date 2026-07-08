@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { statsJoin, urgentCondition } from "@/lib/urgent";
+import { bogeumjariCondition, kbJoin, statsJoin, urgentCondition } from "@/lib/urgent";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
   const areaMax = num(p.get("areaMax"), 100000);
   const maxPrice = num(p.get("maxPrice"), 100000000);
   const urgentOnly = p.get("urgentOnly") === "1";
+  const bogeumjariOnly = p.get("bogeumjari") === "1";
   const minHouseholds = num(p.get("minHouseholds"), 0);
 
   const db = getDb();
@@ -39,10 +40,12 @@ export async function GET(req: NextRequest) {
           FROM complexes c
           JOIN articles a ON a.complex_no = c.complex_no AND a.is_active = 1
           LEFT JOIN complex_area_stats s ON ${statsJoin("a", "s")}
+          LEFT JOIN complex_kb_price kb ON ${kbJoin("a", "kb")}
           WHERE c.lat BETWEEN ? AND ? AND c.lng BETWEEN ? AND ?
             AND a.area_exclusive BETWEEN ? AND ?
             AND a.price <= ?
             AND (? = 0 OR COALESCE(c.total_households, 0) >= ?)
+            ${bogeumjariOnly ? `AND ${bogeumjariCondition("a", "kb")}` : ""}
           GROUP BY c.complex_no
           ${urgentOnly ? "HAVING urgent_count > 0" : ""}
           ORDER BY article_count DESC

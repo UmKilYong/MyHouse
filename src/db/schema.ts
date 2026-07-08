@@ -119,6 +119,15 @@ export const SCHEMA_STATEMENTS: string[] = [
     PRIMARY KEY (complex_no, area_group, date)
   )`,
 
+  // KB시세 (단지·평형 그룹별 매매일반거래가 — 보금자리론 판정용, 주 1회 수집)
+  `CREATE TABLE IF NOT EXISTS complex_kb_price (
+    complex_no TEXT NOT NULL,
+    area_group INTEGER NOT NULL,
+    kb_price INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (complex_no, area_group)
+  )`,
+
   // 수집 실행 이력
   `CREATE TABLE IF NOT EXISTS collect_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,6 +145,11 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
     table: "regions",
     column: "last_collected_at",
     ddl: `ALTER TABLE regions ADD COLUMN last_collected_at TEXT`,
+  },
+  {
+    table: "complexes",
+    column: "kb_serial",
+    ddl: `ALTER TABLE complexes ADD COLUMN kb_serial INTEGER`,
   },
 ];
 

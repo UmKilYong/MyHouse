@@ -19,3 +19,17 @@ export function urgentCondition(a = "a", s = "s"): string {
 export function statsJoin(a = "a", s = "s"): string {
   return `${s}.complex_no = ${a}.complex_no AND ${s}.area_group = CAST(${a}.area_exclusive AS INTEGER)`;
 }
+
+/**
+ * 보금자리론: 실제 매매가(호가) 6억 이하 AND KB시세 6억 이하.
+ * KB시세가 없는 단지·평형은 판정 불가로 제외 (보수적).
+ */
+export const BOGEUMJARI_LIMIT = Number(process.env.BOGEUMJARI_LIMIT || 60000); // 만원
+
+export function kbJoin(a = "a", kb = "kb"): string {
+  return `${kb}.complex_no = ${a}.complex_no AND ${kb}.area_group = CAST(${a}.area_exclusive AS INTEGER)`;
+}
+
+export function bogeumjariCondition(a = "a", kb = "kb"): string {
+  return `(${a}.price <= ${BOGEUMJARI_LIMIT} AND ${kb}.kb_price IS NOT NULL AND ${kb}.kb_price <= ${BOGEUMJARI_LIMIT})`;
+}

@@ -30,6 +30,8 @@ export interface ArticleItem {
   confirmYmd: string | null;
   firstSeenAt: string;
   isUrgent: boolean;
+  isBogeumjari: boolean;
+  kbPrice: number | null;
   vsAvgPct: number | null;
   vsTradeAvgPct: number | null;
   priceCutPct: number | null;
@@ -40,6 +42,7 @@ export interface AreaStat {
   minAsk: number | null;
   avgAsk: number | null;
   askCount: number;
+  kbPrice: number | null;
   recentTradeAvg: number | null;
   recentTradeCount: number;
   peakTradePrice: number | null;
@@ -83,6 +86,7 @@ export interface Filters {
   areaMax: number;
   maxPrice: number | null; // 만원
   urgentOnly: boolean;
+  bogeumjariOnly: boolean; // 보금자리론 가능 (호가·KB시세 6억 이하)
   minHouseholds: number | null; // 최소 세대수
 }
 

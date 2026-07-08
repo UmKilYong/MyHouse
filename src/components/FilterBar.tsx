@@ -116,6 +116,18 @@ export default function FilterBar({ filters, onChange, cities, onCityJump }: Pro
         </span>
       </label>
 
+      <button
+        onClick={() => onChange({ ...filters, bogeumjariOnly: !filters.bogeumjariOnly })}
+        title="실제 매매가 6억 이하 + KB시세 6억 이하 매물만 표시"
+        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+          filters.bogeumjariOnly
+            ? "border-emerald-600 bg-emerald-600 text-white"
+            : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+        }`}
+      >
+        🏦 보금자리론 가능
+      </button>
+
       {cities.length > 0 && (
         <div className="ml-auto flex items-center gap-1">
           {cities.map((c) => (

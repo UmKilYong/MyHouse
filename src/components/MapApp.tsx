@@ -20,6 +20,7 @@ export default function MapApp({ ncpKeyId }: Props) {
     areaMax: 400,
     maxPrice: null,
     urgentOnly: false,
+    bogeumjariOnly: false,
     minHouseholds: null,
   });
   // 지도 키가 없으면 전체 영역 bounds로 목록만 동작
@@ -51,6 +52,7 @@ export default function MapApp({ ncpKeyId }: Props) {
     });
     if (f.maxPrice != null) qs.set("maxPrice", String(f.maxPrice));
     if (f.urgentOnly) qs.set("urgentOnly", "1");
+    if (f.bogeumjariOnly) qs.set("bogeumjari", "1");
     if (f.minHouseholds != null) qs.set("minHouseholds", String(f.minHouseholds));
     fetch(`/api/map-data?${qs}`)
       .then((r) => r.json())

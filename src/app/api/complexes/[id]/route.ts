@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { statsJoin, urgentCondition } from "@/lib/urgent";
+import { BOGEUMJARI_LIMIT, bogeumjariCondition, kbJoin, statsJoin, urgentCondition } from "@/lib/urgent";
 
 export const dynamic = "force-dynamic";
 
@@ -62,10 +62,13 @@ export async function GET(
                  s.avg_ask, s.ask_count, s.recent_trade_avg, s.recent_trade_count,
                  s.peak_trade_price, s.peak_trade_date,
                  ${urgent} AS is_urgent,
+                 kb.kb_price,
+                 ${bogeumjariCondition("a", "kb")} AS is_bogeumjari,
                  (SELECT h.price FROM article_price_history h
                   WHERE h.article_no = a.article_no ORDER BY h.seen_at LIMIT 1) AS initial_price
           FROM articles a
           LEFT JOIN complex_area_stats s ON ${statsJoin("a", "s")}
+          LEFT JOIN complex_kb_price kb ON ${kbJoin("a", "kb")}
           WHERE a.complex_no = ? AND a.is_active = 1
             AND a.area_exclusive BETWEEN ? AND ?
           ORDER BY a.price ASC`,
@@ -89,6 +92,12 @@ export async function GET(
     });
   }
 
+  const kbRs = await db.execute({
+    sql: `SELECT area_group, kb_price FROM complex_kb_price WHERE complex_no = ?`,
+    args: [id],
+  });
+  const kbByGroup = new Map(kbRs.rows.map((r) => [Number(r.area_group), Number(r.kb_price)]));
+
   const statsRs = await db.execute({
     sql: `SELECT * FROM complex_area_stats WHERE complex_no = ? AND ask_count > 0 ORDER BY area_group`,
     args: [id],
@@ -107,6 +116,7 @@ export async function GET(
       minAsk,
       avgAsk: r.avg_ask == null ? null : Number(r.avg_ask),
       askCount: Number(r.ask_count),
+      kbPrice: kbByGroup.get(g) ?? null,
       recentTradeAvg: r.recent_trade_avg == null ? null : Number(r.recent_trade_avg),
       recentTradeCount: Number(r.recent_trade_count),
       peakTradePrice: peak,
@@ -158,6 +168,8 @@ export async function GET(
         confirmYmd: r.confirm_ymd,
         firstSeenAt: r.first_seen_at,
         isUrgent: Boolean(Number(r.is_urgent)),
+        isBogeumjari: Boolean(Number(r.is_bogeumjari)),
+        kbPrice: r.kb_price == null ? null : Number(r.kb_price),
         vsAvgPct: pctChange(price, avgAsk),
         vsTradeAvgPct: pctChange(price, tradeAvg),
         priceCutPct: initial != null && initial > price ? pctChange(price, initial) : null,

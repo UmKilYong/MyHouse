@@ -68,6 +68,7 @@ export default function ComplexDetail({ complexNo, filters, onClose }: Props) {
                   <th className="py-1 text-left font-medium">전용</th>
                   <th className="text-right font-medium">최저호가</th>
                   <th className="text-right font-medium">평균</th>
+                  <th className="text-right font-medium">KB시세</th>
                   <th className="text-right font-medium">실거래(6M)</th>
                   <th className="text-right font-medium">전고점</th>
                   <th className="text-right font-medium">고점대비</th>
@@ -85,6 +86,9 @@ export default function ComplexDetail({ complexNo, filters, onClose }: Props) {
                     </td>
                     <td className="text-right text-slate-600">
                       {s.avgAsk != null ? formatManwon(s.avgAsk) : "–"}
+                    </td>
+                    <td className="text-right text-slate-600">
+                      {s.kbPrice != null ? formatManwon(s.kbPrice) : "–"}
                     </td>
                     <td className="text-right text-slate-600">
                       {s.recentTradeAvg != null
@@ -128,6 +132,11 @@ export default function ComplexDetail({ complexNo, filters, onClose }: Props) {
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                     {a.isUrgent && (
                       <span className="rounded bg-red-600 px-1.5 py-0.5 font-bold text-white">⚡급매</span>
+                    )}
+                    {a.isBogeumjari && (
+                      <span className="rounded bg-emerald-600 px-1.5 py-0.5 font-bold text-white" title={`KB시세 ${a.kbPrice != null ? a.kbPrice.toLocaleString() : "?"}만원`}>
+                        🏦보금자리
+                      </span>
                     )}
                     {a.vsAvgPct != null && (
                       <span className={`rounded px-1.5 py-0.5 ${a.vsAvgPct < 0 ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>

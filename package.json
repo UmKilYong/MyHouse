@@ -10,6 +10,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "collect:naver": "tsx scripts/collect-naver.ts",
     "collect:trades": "tsx scripts/collect-trades.ts",
+    "collect:kb": "tsx scripts/collect-kb.ts",
     "collect": "tsx scripts/collect-naver.ts && tsx scripts/collect-trades.ts"
   },
   "dependencies": {
