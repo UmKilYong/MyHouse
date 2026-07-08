@@ -31,6 +31,9 @@ const SIDO_BY_PREFIX: Record<string, { code: string; name: string }> = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 국토부 CSV는 하루 100건 다운로드 제한 — 도달 시 정상 중단(다음 실행에서 이어받음) */
+class DailyLimitError extends Error {}
+
 interface TradeRow {
   umdName: string;
   aptName: string;
@@ -148,9 +151,16 @@ async function fetchYearCsv(sgg: string, year: number): Promise<TradeRow[]> {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buf = await res.arrayBuffer();
       const text = new TextDecoder("euc-kr").decode(buf);
-      if (text.includes("error") && text.length < 500) throw new Error(text.slice(0, 200));
+      if (text.includes("error") && text.length < 500) {
+        // 일일 다운로드 100건 제한 → 재시도 무의미, 즉시 중단 신호
+        if (text.includes("초과") || text.includes("100")) {
+          throw new DailyLimitError(text.slice(0, 200));
+        }
+        throw new Error(text.slice(0, 200));
+      }
       return parseCsv(text);
     } catch (e) {
+      if (e instanceof DailyLimitError) throw e; // 재시도하지 않음
       lastError = e;
       await sleep(5000 * (attempt + 1));
     }
@@ -308,11 +318,24 @@ async function main() {
 
     let totalTrades = 0;
     let fetchedYears = 0;
-    for (const sgg of sggCodes) {
+    let limitHit = false;
+    outer: for (const sgg of sggCodes) {
       for (let year = backfillFromYear; year <= currentYear; year++) {
         // 최근 2개년은 항상 재수집 (지연 신고·해제 반영), 과거는 1회만
         if (year < currentYear - 1 && fetched.has(`${sgg}|Y${year}`)) continue;
-        const rows = await fetchYearCsv(sgg, year);
+        let rows;
+        try {
+          rows = await fetchYearCsv(sgg, year);
+        } catch (e) {
+          if (e instanceof DailyLimitError) {
+            console.log(
+              `일일 다운로드 100건 제한 도달 — 실거래 수집 중단 (이번 ${fetchedYears}건 수집, 나머지는 다음 실행에서 이어받음)`
+            );
+            limitHit = true;
+            break outer;
+          }
+          throw e;
+        }
         await saveYear(db, sgg, year, rows);
         totalTrades += rows.length;
         fetchedYears++;
@@ -327,7 +350,7 @@ async function main() {
 
     await db.execute({
       sql: `UPDATE collect_runs SET finished_at=?, status='success', detail=? WHERE id=?`,
-      args: [nowIso(), JSON.stringify({ sggCount: sggCodes.length, fetchedYears, totalTrades, matched }), runId],
+      args: [nowIso(), JSON.stringify({ sggCount: sggCodes.length, fetchedYears, totalTrades, matched, limitHit }), runId],
     });
   } catch (e) {
     await db.execute({
