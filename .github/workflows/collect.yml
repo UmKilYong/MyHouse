@@ -1,14 +1,13 @@
-# 네이버 매물: 하루 3회 (KST 08:00 / 13:00 / 20:00)
-# 국토부 실거래: 저녁 1회만 (신고가 계약 후 30일 이내라 하루 1번이면 충분)
-# KB시세: 주 1회 토요일 아침 (KB시세는 매주 금요일 갱신 — 보금자리론 판정용)
+# GitHub Actions에서는 국토부 실거래·KB시세만 수집한다.
+# 네이버 매물은 데이터센터 IP가 차단되므로(ECONNRESET) 로컬 Mac의 launchd로 수집 → Turso.
+#   국토부 실거래: 저녁 1회 (신고 지연 30일이라 하루 1번이면 충분, 일일 100건 제한은 며칠에 걸쳐 이어받음)
+#   KB시세: 주 1회 토요일 아침 (KB는 매주 금요일 갱신 — 보금자리론 판정용)
 name: collect
 
 on:
   schedule:
-    - cron: "0 23 * * *" # 08:00 KST
-    - cron: "0 4 * * *"  # 13:00 KST
-    - cron: "0 11 * * *" # 20:00 KST (실거래 포함)
-    - cron: "0 22 * * 5" # 토 07:00 KST (KB시세)
+    - cron: "0 11 * * *" # 20:00 KST — 실거래
+    - cron: "0 22 * * 5" # 토 07:00 KST — KB시세
   workflow_dispatch:
 
 concurrency:
@@ -26,21 +25,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Collect Naver listings
-        if: github.event.schedule != '0 22 * * 5'
-        run: npx tsx scripts/collect-naver.ts
-        env:
-          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       - name: Collect MOLIT trades
-        # 저녁 스케줄과 수동 실행에서만 (매물 수집이 실패해도 실행)
-        if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '0 11 * * *')
+        # 저녁 스케줄과 수동 실행에서만
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 11 * * *'
         run: npx tsx scripts/collect-trades.ts
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       - name: Collect KB prices (weekly)
-        # 토요일 아침 스케줄과 수동 실행에서만
+        # 토요일 아침 스케줄과 수동 실행에서만 (실거래가 실패해도 실행)
         if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '0 22 * * 5')
         run: npx tsx scripts/collect-kb.ts
         env:

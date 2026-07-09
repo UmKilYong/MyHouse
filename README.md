@@ -17,10 +17,10 @@
 
 - **웹**: Next.js → Vercel Hobby
 - **DB**: Turso (libSQL) — 로컬 개발 시 `data/house.db` SQLite 파일
-- **수집**: GitHub Actions 스케줄
-  - 네이버 부동산 비공식 API → 매물 호가: KST 08/13/20시 하루 3회 (개인 용도 전제)
-  - 국토부 실거래가 공개시스템 CSV → 실거래: 저녁 20시 하루 1회 (신고가 계약 후 30일 이내라 충분, API 키 불필요)
-  - KB부동산 비공식 API → KB시세: 토요일 아침 주 1회 (KB시세는 금요일 갱신 — 보금자리론 판정용)
+- **수집** (모두 Turso에 기록):
+  - 네이버 부동산 비공식 API → 매물 호가: **로컬 Mac의 launchd로 KST 08/13/20시 하루 3회**. 네이버가 GitHub Actions 데이터센터 IP를 차단(ECONNRESET)하므로 가정용 IP에서 수집한다. (개인 용도 전제)
+  - 국토부 실거래가 공개시스템 CSV → 실거래: **GitHub Actions** 저녁 20시 하루 1회 (신고 지연 30일이라 충분, API 키 불필요. 일일 100건 제한은 며칠에 걸쳐 이어받음)
+  - KB부동산 비공식 API → KB시세: **GitHub Actions** 토요일 아침 주 1회 (KB는 금요일 갱신 — 보금자리론 판정용)
 - **지도**: 네이버 Maps JavaScript API v3 (NCP)
 
 ## 급매 판별 기준
@@ -63,23 +63,35 @@ npm run collect:kb -- --city 광명시           # 특정 시만
 1. **키 발급 (전부 무료)**
    - [네이버 클라우드 플랫폼](https://www.ncloud.com/product/applicationService/maps) → Maps 이용 신청 → *Web Dynamic Map* Key ID 발급. 콘솔에서 **이용 한도를 무료 구간 이하로 설정**하면 초과 시 호출만 차단되고 과금되지 않는다.
    - [Turso](https://turso.tech) 가입 → DB 생성 → URL과 토큰 확보.
-2. **GitHub 저장소** 생성 후 푸시. Actions 무료 한도를 위해 **public 권장** (서울·인천 포함 시 1회 수집이 수 시간, private 무료 한도 월 2,000분 초과 가능).
+2. **GitHub 저장소** 생성 후 푸시 (public 권장, Actions 무료 무제한).
    - Settings → Secrets and variables → Actions에 `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` 등록.
-   - 첫 수집: Actions 탭 → collect → Run workflow.
+   - GitHub Actions는 실거래·KB시세만 수집한다. 매물(네이버)은 아래 "로컬 Mac launchd"로 별도 구성.
 3. **Vercel** 프로젝트 연결 (Hobby 무료). 환경변수 등록:
    - `NEXT_PUBLIC_NCP_KEY_ID`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_PASSWORD`
    - NCP 콘솔의 Web Dynamic Map **서비스 URL에 Vercel 도메인 등록** 필요.
 4. 접속 → `APP_PASSWORD`로 로그인.
 
-### 네이버가 GitHub Actions IP를 차단하는 경우
+### 네이버 매물 수집 = 로컬 Mac launchd (필수)
 
-동일 스크립트를 집 컴퓨터에서 실행해 Turso로 밀어넣을 수 있다:
+네이버는 GitHub Actions 데이터센터 IP를 차단하므로 매물 수집은 가정용 IP(집 Mac)에서 돌린다. 실제 구성:
+
+- 접속 정보: `~/.house-collect/.env` (TCC 보호 밖, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`, chmod 600)
+- 실행 스크립트: `~/.house-collect/naver-collect.sh` (프로젝트로 `cd` 후 `npm run collect:naver`, 동시 실행 잠금 포함). 저장소의 원본은 `scripts/local-collect-naver.sh`
+- launchd: `~/Library/LaunchAgents/com.house.naver-collect.plist` — 매일 08:00 / 13:00 / 20:00 실행
+- 로그: `~/.house-collect/naver.log`
 
 ```bash
-# .env.local에 TURSO_* 설정 후 cron/launchd로 등록
-0 8,13,20 * * * cd ~/house && npm run collect:naver
-0 20 * * * cd ~/house && npm run collect:trades
+# 등록 / 재적용
+launchctl unload ~/Library/LaunchAgents/com.house.naver-collect.plist 2>/dev/null
+launchctl load  ~/Library/LaunchAgents/com.house.naver-collect.plist
+launchctl start com.house.naver-collect   # 즉시 1회 실행 (테스트)
+launchctl list | grep house               # 등록 확인
+tail -f ~/.house-collect/naver.log        # 진행 로그
 ```
+
+> Mac이 꺼져 있거나 잠자기면 그 시각 실행은 건너뛰고, 다음 예약 시각(또는 깨어난 뒤)에 다시 돈다. 스크립트가 프로젝트(`~/Documents/...`)를 읽으려면 실행 주체에 **파일 및 폴더(또는 전체 디스크) 접근 권한**이 필요할 수 있다.
+
+국토부 실거래·KB시세는 `.github/workflows/collect.yml`이 GitHub Actions에서 자동 수집한다 (네이버 스텝 없음).
 
 ## 데이터 흐름
 

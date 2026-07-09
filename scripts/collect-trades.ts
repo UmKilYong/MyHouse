@@ -135,7 +135,7 @@ async function fetchYearCsv(sgg: string, year: number): Promise<TradeRow[]> {
   });
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 6; attempt++) {
     try {
       const cookie = await getSessionCookie(attempt > 0);
       const res = await fetch(CSV_URL, {
@@ -147,6 +147,8 @@ async function fetchYearCsv(sgg: string, year: number): Promise<TradeRow[]> {
           Cookie: cookie,
         },
         body: form.toString(),
+        // 국토부 서버가 느릴 때 기본 10초 연결 타임아웃으로 실패 → 30초로 완화
+        signal: AbortSignal.timeout(30000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buf = await res.arrayBuffer();
