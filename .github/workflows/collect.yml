@@ -1,13 +1,11 @@
-# GitHub Actions에서는 국토부 실거래·KB시세만 수집한다.
-# 네이버 매물은 데이터센터 IP가 차단되므로(ECONNRESET) 로컬 Mac의 launchd로 수집 → Turso.
-#   국토부 실거래: 저녁 1회 (신고 지연 30일이라 하루 1번이면 충분, 일일 100건 제한은 며칠에 걸쳐 이어받음)
-#   KB시세: 주 1회 토요일 아침 (KB는 매주 금요일 갱신 — 보금자리론 판정용)
+# 모든 수집(네이버 매물·국토부 실거래·KB시세)은 로컬 Mac의 launchd에서 수행한다.
+# 이유: 한국 서비스(네이버·국토부)가 GitHub Actions 데이터센터 IP를 차단·타임아웃시킨다.
+#   - 네이버: ECONNRESET, 국토부: UND_ERR_CONNECT_TIMEOUT
+# 이 워크플로우는 수동 실행(workflow_dispatch)만 남겨둔다 — 평소엔 돌지 않아 실패 알람이 없다.
+# 로컬 수집 구성은 README "로컬 Mac launchd" 섹션 참고.
 name: collect
 
 on:
-  schedule:
-    - cron: "0 11 * * *" # 20:00 KST — 실거래
-    - cron: "0 22 * * 5" # 토 07:00 KST — KB시세
   workflow_dispatch:
 
 concurrency:
@@ -25,16 +23,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # 데이터센터 IP에서는 국토부·KB 접속이 불안정하다. 수동 실행 시에만 시도.
       - name: Collect MOLIT trades
-        # 저녁 스케줄과 수동 실행에서만
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 11 * * *'
         run: npx tsx scripts/collect-trades.ts
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      - name: Collect KB prices (weekly)
-        # 토요일 아침 스케줄과 수동 실행에서만 (실거래가 실패해도 실행)
-        if: always() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '0 22 * * 5')
+      - name: Collect KB prices
+        if: always()
         run: npx tsx scripts/collect-kb.ts
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
