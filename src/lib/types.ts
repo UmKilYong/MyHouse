@@ -76,6 +76,7 @@ export interface ComplexDetailResponse {
 }
 
 export interface StatusResponse {
+  lastListingCollectedAt: string | null;
   runs: { kind: string; startedAt: string; finishedAt: string | null; status: string }[];
   cities: { city: string; lat: number; lng: number; complexCount: number }[];
   counts: { articles: number; complexes: number; trades: number };

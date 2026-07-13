@@ -19,7 +19,13 @@ export async function GET() {
             (SELECT COUNT(*) FROM complexes) AS complexes,
             (SELECT COUNT(*) FROM trades) AS trades`
   );
+  // 매물(네이버) 수집이 마지막으로 성공한 완료 시각 — 화면 표기용
+  const listingRs = await db.execute(
+    `SELECT MAX(finished_at) AS at FROM collect_runs WHERE kind='naver' AND status='success'`
+  );
+
   return NextResponse.json({
+    lastListingCollectedAt: listingRs.rows[0].at ?? null,
     runs: runsRs.rows.map((r) => ({
       kind: r.kind,
       startedAt: r.started_at,

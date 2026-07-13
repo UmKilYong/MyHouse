@@ -32,3 +32,13 @@ export function timeAgo(iso: string): string {
   if (h < 24) return `${h}시간 전`;
   return `${Math.floor(h / 24)}일 전`;
 }
+
+/** ISO(UTC) → KST "M월 D일 HH:MM" */
+export function formatKstDateTime(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
+  const mo = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${mo}월 ${day}일 ${hh}:${mm}`;
+}

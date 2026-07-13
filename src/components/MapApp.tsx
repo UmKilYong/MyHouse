@@ -6,7 +6,7 @@ import FilterBar from "./FilterBar";
 import ComplexList from "./ComplexList";
 import ComplexDetail from "./ComplexDetail";
 import type { Bounds, Filters, MapComplex, MapDataResponse, StatusResponse } from "@/lib/types";
-import { timeAgo } from "@/lib/format";
+import { formatKstDateTime } from "@/lib/format";
 
 const DEFAULT_CENTER = { lat: 37.4786, lng: 126.8646 }; // 광명
 
@@ -76,8 +76,6 @@ export default function MapApp({ ncpKeyId }: Props) {
     setBounds(b);
   }, []);
 
-  const lastRun = status?.runs.find((r) => r.status === "success");
-
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2">
@@ -87,7 +85,8 @@ export default function MapApp({ ncpKeyId }: Props) {
         <span className="text-[11px] text-slate-400">
           {status &&
             `매물 ${status.counts.articles.toLocaleString()} · 단지 ${status.counts.complexes.toLocaleString()} · 실거래 ${status.counts.trades.toLocaleString()}`}
-          {lastRun?.finishedAt && ` · 수집 ${timeAgo(lastRun.finishedAt)}`}
+          {status?.lastListingCollectedAt &&
+            ` · 매물 수집 ${formatKstDateTime(status.lastListingCollectedAt)}`}
         </span>
         <span className="ml-auto text-[11px] text-slate-400">
           핀 가격 = 실제 매물 최저 호가
