@@ -17,10 +17,11 @@
 
 - **웹**: Next.js → Vercel Hobby
 - **DB**: Turso (libSQL) — 로컬 개발 시 `data/house.db` SQLite 파일
-- **수집** (모두 Turso에 기록):
-  - 네이버 부동산 비공식 API → 매물 호가: **로컬 Mac의 launchd로 KST 08/13/20시 하루 3회**. 네이버가 GitHub Actions 데이터센터 IP를 차단(ECONNRESET)하므로 가정용 IP에서 수집한다. (개인 용도 전제)
-  - 국토부 실거래가 공개시스템 CSV → 실거래: **GitHub Actions** 저녁 20시 하루 1회 (신고 지연 30일이라 충분, API 키 불필요. 일일 100건 제한은 며칠에 걸쳐 이어받음)
-  - KB부동산 비공식 API → KB시세: **GitHub Actions** 토요일 아침 주 1회 (KB는 금요일 갱신 — 보금자리론 판정용)
+- **수집** (전부 **로컬 Mac의 launchd**로 실행 → Turso 기록. 한국 서비스가 GitHub Actions 데이터센터 IP를 차단·타임아웃시키므로 가정용 IP에서 수집한다):
+  - 네이버 매물 호가: KST 08/13/20시 하루 3회 (`com.house.naver-collect`)
+  - 국토부 실거래(CSV, 키 불필요): 매일 21시 (`com.house.trades-kb`). 일일 100건 제한은 며칠에 걸쳐 이어받음
+  - KB시세(보금자리론 판정용): 토요일 21시 (`com.house.trades-kb`가 요일 판별)
+  - GitHub Actions(`.github/workflows/collect.yml`)는 **수동 실행(workflow_dispatch)만** — 평소엔 돌지 않아 실패 알람이 없다.
 - **지도**: 네이버 Maps JavaScript API v3 (NCP)
 
 ## 급매 판별 기준
@@ -71,34 +72,37 @@ npm run collect:kb -- --city 광명시           # 특정 시만
    - NCP 콘솔의 Web Dynamic Map **서비스 URL에 Vercel 도메인 등록** 필요.
 4. 접속 → `APP_PASSWORD`로 로그인.
 
-### 네이버 매물 수집 = 로컬 Mac launchd (필수)
+### 수집 = 로컬 Mac launchd (필수)
 
-네이버는 GitHub Actions 데이터센터 IP를 차단하므로 매물 수집은 가정용 IP(집 Mac)에서 돌린다. 실제 구성:
+한국 서비스가 GitHub Actions 데이터센터 IP를 차단·타임아웃시키므로(네이버 ECONNRESET, 국토부 CONNECT_TIMEOUT) 모든 수집을 가정용 IP(집 Mac)에서 돌린다.
 
 - 접속 정보: `~/.house-collect/.env` (TCC 보호 밖, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`, chmod 600)
-- 실행 스크립트: `~/.house-collect/naver-collect.sh` (프로젝트로 `cd` 후 `npm run collect:naver`, 동시 실행 잠금 포함). 저장소의 원본은 `scripts/local-collect-naver.sh`
-- launchd: `~/Library/LaunchAgents/com.house.naver-collect.plist` — 매일 08:00 / 13:00 / 20:00 실행
-- 로그: `~/.house-collect/naver.log`
+- launchd 잡 2개 (`~/Library/LaunchAgents/`):
+  - `com.house.naver-collect` → `~/.house-collect/naver-collect.sh` : 매물, 08/13/20시. 로그 `~/.house-collect/naver.log`
+  - `com.house.trades-kb` → `~/.house-collect/trades-kb.sh` : 실거래 매일 21시 + KB시세 토요일. 로그 `~/.house-collect/trades-kb.log`
+- 저장소의 래퍼 원본: `scripts/local-collect-naver.sh` (나머지 래퍼는 `~/.house-collect/`에만 있고 git 미추적)
 
 ```bash
 # 등록 / 재적용
 launchctl unload ~/Library/LaunchAgents/com.house.naver-collect.plist 2>/dev/null
 launchctl load  ~/Library/LaunchAgents/com.house.naver-collect.plist
+launchctl load  ~/Library/LaunchAgents/com.house.trades-kb.plist
 launchctl start com.house.naver-collect   # 즉시 1회 실행 (테스트)
+launchctl start com.house.trades-kb
 launchctl list | grep house               # 등록 확인
 tail -f ~/.house-collect/naver.log        # 진행 로그
 ```
 
 > Mac이 꺼져 있거나 잠자기면 그 시각 실행은 건너뛰고, 다음 예약 시각(또는 깨어난 뒤)에 다시 돈다. 스크립트가 프로젝트(`~/Documents/...`)를 읽으려면 실행 주체에 **파일 및 폴더(또는 전체 디스크) 접근 권한**이 필요할 수 있다.
 
-국토부 실거래·KB시세는 `.github/workflows/collect.yml`이 GitHub Actions에서 자동 수집한다 (네이버 스텝 없음).
+`.github/workflows/collect.yml`은 수동 실행(workflow_dispatch)만 남아 있어 평소엔 돌지 않는다.
 
 ## 데이터 흐름
 
 ```
-네이버 부동산 API ─┐                    ┌─ /api/map-data (핀: 단지별 최저가·급매)
-                  ├→ Turso/SQLite ──→ ├─ /api/complexes/[id] (매물·변동율·실거래)
-국토부 실거래 API ─┘   (수집 3회/일)     └─ /api/status
+네이버·국토부·KB API ─┐  (로컬 Mac launchd 수집)   ┌─ /api/map-data (핀: 단지별 최저가·급매·보금자리)
+                     ├→ Turso ──(Vercel)──→ ├─ /api/complexes/[id] (매물·변동율·실거래·KB시세)
+                     ┘                              └─ /api/status
 ```
 
 핵심 테이블: `articles`(매물, 가격 변동 이력 추적) · `trades`(실거래 전체 이력) · `complex_area_stats`(단지·평형별 집계: 평균 호가, 6개월 실거래 평균, 전고점) · `complex_daily_stats`(일별 스냅샷 → 전일/전주/전월 변동율)
