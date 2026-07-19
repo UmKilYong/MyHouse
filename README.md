@@ -15,11 +15,12 @@
 
 ## 구성 (전부 무료 티어)
 
-- **웹**: Next.js → Vercel Hobby
-- **DB**: Turso (libSQL) — 로컬 개발 시 `data/house.db` SQLite 파일
-- **수집** (전부 **로컬 Mac의 launchd**로 실행 → Turso 기록. 한국 서비스가 GitHub Actions 데이터센터 IP를 차단·타임아웃시키므로 가정용 IP에서 수집한다):
+- **웹**: Next.js → Vercel Hobby. 배포 사이트는 **Cloudflare D1**을 REST로 읽는다.
+- **DB**: 로컬 수집은 `data/house.db`(SQLite, 원본), 배포 읽기는 **Cloudflare D1**. 로컬→D1은 델타 동기화(`sync:d1`).
+  - D1 무료 제약(쓰기 10만/일, 파라미터 100개, 500MB)을 피하려고 D1엔 **웹앱이 읽는 읽기모델 부분집합만**(활성 매물·집계·KB·최근 실거래·최근 스냅샷) 올리고, 바뀐 행만 값-인라인 SQL로 푸시한다.
+- **수집** (전부 **로컬 Mac의 launchd**로 실행 → 로컬 SQLite 기록 → D1 동기화. 한국 서비스가 GitHub Actions 데이터센터 IP를 차단·타임아웃시키므로 가정용 IP에서 수집한다):
   - 네이버 매물 호가: KST 08/13/20시 하루 3회 (`com.house.naver-collect`)
-  - 국토부 실거래(CSV, 키 불필요): 매일 21시 (`com.house.trades-kb`). 일일 100건 제한은 며칠에 걸쳐 이어받음
+  - 국토부 실거래(CSV, 키 불필요) + **D1 동기화**: 매일 21시 (`com.house.trades-kb`). 일일 100건 제한은 며칠에 걸쳐 이어받음
   - KB시세(보금자리론 판정용): 토요일 21시 (`com.house.trades-kb`가 요일 판별)
   - GitHub Actions(`.github/workflows/collect.yml`)는 **수동 실행(workflow_dispatch)만** — 평소엔 돌지 않아 실패 알람이 없다.
 - **지도**: 네이버 Maps JavaScript API v3 (NCP)
@@ -44,7 +45,6 @@ npm run dev                  # http://localhost:3000
 ```
 
 - `NEXT_PUBLIC_NCP_KEY_ID` 없이도 목록/상세는 동작하고, 지도만 안 보인다.
-- 로컬 SQLite 사용 시 dev 서버가 떠 있는 상태에서 수집을 돌리면 서버의 DB 연결이 낡아질 수 있다 — 수집 후 dev 서버를 재시작하면 된다 (Turso 사용 시 해당 없음).
 - 전일/전주/전월 변동율은 수집이 이틀 이상 쌓이면 표시된다.
 
 ### 수집 명령
@@ -63,12 +63,12 @@ npm run collect:kb -- --city 광명시           # 특정 시만
 
 1. **키 발급 (전부 무료)**
    - [네이버 클라우드 플랫폼](https://www.ncloud.com/product/applicationService/maps) → Maps 이용 신청 → *Web Dynamic Map* Key ID 발급. 콘솔에서 **이용 한도를 무료 구간 이하로 설정**하면 초과 시 호출만 차단되고 과금되지 않는다.
-   - [Turso](https://turso.tech) 가입 → DB 생성 → URL과 토큰 확보.
-2. **GitHub 저장소** 생성 후 푸시 (public 권장, Actions 무료 무제한).
-   - Settings → Secrets and variables → Actions에 `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` 등록.
-   - GitHub Actions는 실거래·KB시세만 수집한다. 매물(네이버)은 아래 "로컬 Mac launchd"로 별도 구성.
+   - [Cloudflare](https://dash.cloudflare.com) 가입 → API Tokens에서 **Account · D1 · Edit** 커스텀 토큰 발급, Account ID 확인.
+     - D1 DB 생성: `curl -X POST https://api.cloudflare.com/client/v4/accounts/<ACCT>/d1/database -H "Authorization: Bearer <TOKEN>" -d '{"name":"house"}'` → 반환 `uuid`가 `CF_D1_DATABASE_ID`.
+     - 스키마: `.env.collect.local`에 `CF_*` 넣고 `npm run migrate:d1`.
+2. **GitHub 저장소** 생성 후 푸시 (public 권장). GitHub Actions는 수동 실행만 남아 있어 상시 수집엔 관여하지 않는다(로컬 launchd가 담당).
 3. **Vercel** 프로젝트 연결 (Hobby 무료). 환경변수 등록:
-   - `NEXT_PUBLIC_NCP_KEY_ID`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_PASSWORD`
+   - `NEXT_PUBLIC_NCP_KEY_ID`, `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_API_TOKEN`, `APP_PASSWORD`
    - NCP 콘솔의 Web Dynamic Map **서비스 URL에 Vercel 도메인 등록** 필요.
 4. 접속 → `APP_PASSWORD`로 로그인.
 
@@ -76,7 +76,7 @@ npm run collect:kb -- --city 광명시           # 특정 시만
 
 한국 서비스가 GitHub Actions 데이터센터 IP를 차단·타임아웃시키므로(네이버 ECONNRESET, 국토부 CONNECT_TIMEOUT) 모든 수집을 가정용 IP(집 Mac)에서 돌린다.
 
-- 접속 정보: `~/.house-collect/.env` (TCC 보호 밖, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`, chmod 600)
+- 접속 정보: `~/.house-collect/.env` (TCC 보호 밖, `CF_ACCOUNT_ID`/`CF_D1_DATABASE_ID`/`CF_API_TOKEN`, chmod 600) — 프로젝트 `.env.collect.local`과 동일
 - launchd 잡 2개 (`~/Library/LaunchAgents/`):
   - `com.house.naver-collect` → `~/.house-collect/naver-collect.sh` : 매물, 08/13/20시. 로그 `~/.house-collect/naver.log`
   - `com.house.trades-kb` → `~/.house-collect/trades-kb.sh` : 실거래 매일 21시 + KB시세 토요일. 로그 `~/.house-collect/trades-kb.log`
@@ -100,8 +100,8 @@ tail -f ~/.house-collect/naver.log        # 진행 로그
 ## 데이터 흐름
 
 ```
-네이버·국토부·KB API ─┐  (로컬 Mac launchd 수집)   ┌─ /api/map-data (핀: 단지별 최저가·급매·보금자리)
-                     ├→ Turso ──(Vercel)──→ ├─ /api/complexes/[id] (매물·변동율·실거래·KB시세)
+네이버·국토부·KB API ─┐ (로컬 Mac launchd)         ┌─ /api/map-data (핀: 단지별 최저가·급매·보금자리)
+                     ├→ 로컬 SQLite ─(sync:d1 델타)→ Cloudflare D1 ─(Vercel REST)→ ├─ /api/complexes/[id]
                      ┘                              └─ /api/status
 ```
 
