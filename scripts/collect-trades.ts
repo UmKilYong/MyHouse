@@ -29,6 +29,12 @@ const SIDO_BY_PREFIX: Record<string, { code: string; name: string }> = {
   "41": { code: "41000", name: "경기도" },
 };
 
+// 네이버 동 코드와 국토부 시군구 코드는 동일하게 5자리 앞부분을 쓴다.
+// (부천시는 구 폐지 뒤에도 국토부·네이버 모두 옛 구 코드 4119x를 유지 — 별도 매핑 불필요)
+function mergeSgg(code: string): string {
+  return code;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 국토부 CSV는 하루 100건 다운로드 제한 — 도달 시 정상 중단(다음 실행에서 이어받음) */
@@ -225,7 +231,7 @@ async function rebuildTradeMap(db: Client): Promise<number> {
   const stmts: InStatement[] = [{ sql: `DELETE FROM complex_trade_map`, args: [] }];
   let matched = 0;
   for (const row of complexesRs.rows) {
-    const sgg = String(row.cortar_no).slice(0, 5);
+    const sgg = mergeSgg(String(row.cortar_no).slice(0, 5));
     const key = `${sgg}|${row.region_name}`;
     const candidates = byArea.get(key);
     if (!candidates) continue;
@@ -307,7 +313,8 @@ async function main() {
     const sggRs = await db.execute(
       `SELECT DISTINCT SUBSTR(cortar_no, 1, 5) AS sgg FROM regions WHERE active=1 ORDER BY sgg`
     );
-    let sggCodes = sggRs.rows.map((r) => String(r.sgg));
+    // 국토부 코드로 정규화 후 중복 제거 (부천 4119x → 41190)
+    let sggCodes = [...new Set(sggRs.rows.map((r) => mergeSgg(String(r.sgg))))];
     const sggIdx = args.indexOf("--sgg");
     if (sggIdx >= 0) sggCodes = sggCodes.filter((s) => s === args[sggIdx + 1]);
     if (sggCodes.length === 0) {
