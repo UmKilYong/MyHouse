@@ -1,5 +1,3 @@
-import type { Client } from "@libsql/client";
-
 export const SCHEMA_STATEMENTS: string[] = [
   // 수집 대상 지역 (법정동 단위)
   `CREATE TABLE IF NOT EXISTS regions (
@@ -44,6 +42,7 @@ export const SCHEMA_STATEMENTS: string[] = [
     same_addr_cnt INTEGER NOT NULL DEFAULT 1,
     realtor_name TEXT,
     confirm_ymd TEXT,
+    initial_price INTEGER,
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1
@@ -151,9 +150,19 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
     column: "kb_serial",
     ddl: `ALTER TABLE complexes ADD COLUMN kb_serial INTEGER`,
   },
+  {
+    table: "articles",
+    column: "initial_price",
+    ddl: `ALTER TABLE articles ADD COLUMN initial_price INTEGER`,
+  },
 ];
 
-export async function ensureSchema(db: Client): Promise<void> {
+/** libSQL Client과 D1HttpClient 모두 만족하는 최소 인터페이스 */
+interface Executor {
+  execute(sql: string): Promise<unknown>;
+}
+
+export async function ensureSchema(db: Executor): Promise<void> {
   for (const stmt of SCHEMA_STATEMENTS) {
     await db.execute(stmt);
   }

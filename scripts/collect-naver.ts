@@ -121,8 +121,8 @@ async function collectComplexArticles(
         stmts.push({
           sql: `INSERT INTO articles (article_no, complex_no, price, area_supply, area_exclusive, area_name,
                   floor_info, direction, building_name, description, tag_list, same_addr_cnt,
-                  realtor_name, confirm_ymd, first_seen_at, last_seen_at, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                  realtor_name, confirm_ymd, initial_price, first_seen_at, last_seen_at, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(article_no) DO UPDATE SET
                   price=excluded.price, last_seen_at=excluded.last_seen_at, is_active=1,
                   description=excluded.description, tag_list=excluded.tag_list,
@@ -131,7 +131,7 @@ async function collectComplexArticles(
             a.articleNo, complexNo, price, a.area1 ?? null, a.area2 ?? null, a.areaName ?? null,
             a.floorInfo ?? null, a.direction ?? null, a.buildingName ?? null,
             a.articleFeatureDesc ?? null, JSON.stringify(a.tagList ?? []), a.sameAddrCnt ?? 1,
-            a.realtorName ?? null, a.articleConfirmYmd ?? null, now, now,
+            a.realtorName ?? null, a.articleConfirmYmd ?? null, price, now, now,
           ],
         });
         stmts.push({

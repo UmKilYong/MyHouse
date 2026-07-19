@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "tsx scripts/migrate.ts",
+    "migrate:d1": "tsx scripts/migrate-d1.ts",
+    "sync:d1": "tsx scripts/sync-d1.ts",
     "collect:naver": "tsx scripts/collect-naver.ts",
     "collect:trades": "tsx scripts/collect-trades.ts",
     "collect:kb": "tsx scripts/collect-kb.ts",

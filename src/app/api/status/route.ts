@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/db/client";
+import { getReadDb } from "@/db/client";
 
 export const dynamic = "force-dynamic";
 
 /** 수집 상태 + 지역(시) 목록 — 헤더 표시와 지역 이동 메뉴용 */
 export async function GET() {
-  const db = getDb();
+  const db = getReadDb();
   const runsRs = await db.execute(
     `SELECT kind, started_at, finished_at, status, detail FROM collect_runs ORDER BY id DESC LIMIT 6`
   );

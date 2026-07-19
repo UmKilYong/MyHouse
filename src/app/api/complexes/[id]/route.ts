@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/db/client";
-import { BOGEUMJARI_LIMIT, bogeumjariCondition, kbJoin, statsJoin, urgentCondition } from "@/lib/urgent";
+import { getReadDb } from "@/db/client";
+import { bogeumjariCondition, kbJoin, statsJoin, urgentCondition } from "@/lib/urgent";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export async function GET(
   const p = req.nextUrl.searchParams;
   const areaMin = num(p.get("areaMin"), 0);
   const areaMax = num(p.get("areaMax"), 100000);
-  const db = getDb();
+  const db = getReadDb();
 
   const complexRs = await db.execute({
     sql: `SELECT c.*, r.name AS region_name, r.division, r.city
@@ -64,8 +64,7 @@ export async function GET(
                  ${urgent} AS is_urgent,
                  kb.kb_price,
                  ${bogeumjariCondition("a", "kb")} AS is_bogeumjari,
-                 (SELECT h.price FROM article_price_history h
-                  WHERE h.article_no = a.article_no ORDER BY h.seen_at LIMIT 1) AS initial_price
+                 a.initial_price AS initial_price
           FROM articles a
           LEFT JOIN complex_area_stats s ON ${statsJoin("a", "s")}
           LEFT JOIN complex_kb_price kb ON ${kbJoin("a", "kb")}

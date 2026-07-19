@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/db/client";
+import { getReadDb } from "@/db/client";
 import { bogeumjariCondition, kbJoin, statsJoin, urgentCondition } from "@/lib/urgent";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const bogeumjariOnly = p.get("bogeumjari") === "1";
   const minHouseholds = num(p.get("minHouseholds"), 0);
 
-  const db = getDb();
+  const db = getReadDb();
   const urgent = urgentCondition("a", "s");
   const rs = await db.execute({
     sql: `SELECT c.complex_no, c.name, c.lat, c.lng, c.total_households, c.use_approve_ymd,
