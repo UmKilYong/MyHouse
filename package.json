@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "q": "tsx scripts/query.ts",
     "migrate": "tsx scripts/migrate.ts",
     "migrate:d1": "tsx scripts/migrate-d1.ts",
     "sync:d1": "tsx scripts/sync-d1.ts",
