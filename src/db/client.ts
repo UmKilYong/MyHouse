@@ -17,6 +17,12 @@ export function getDb(): Client {
       if (dir && dir !== ".") fs.mkdirSync(dir, { recursive: true });
     }
     fileClient = createClient({ url });
+    // 동시 수집기(naver·trades·sync)가 같은 파일을 써도 충돌하지 않도록:
+    // WAL = 읽기/쓰기 동시 허용, busy_timeout = 잠금 시 즉시 에러 대신 대기
+    if (url.startsWith("file:")) {
+      fileClient.execute("PRAGMA journal_mode=WAL").catch(() => {});
+      fileClient.execute("PRAGMA busy_timeout=30000").catch(() => {});
+    }
   }
   return fileClient;
 }
