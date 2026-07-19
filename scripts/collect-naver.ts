@@ -32,6 +32,9 @@ const TARGETS = [
 
 const MAX_ARTICLE_PAGES = 60;
 
+// 호가 상한(만원). 이 값 이상 매물은 수집·저장하지 않는다 (기본 10억 = 100,000만원).
+export const MAX_PRICE_MANWON = Number(process.env.MAX_PRICE_MANWON || 100000);
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const get = (flag: string) => {
@@ -107,14 +110,16 @@ async function collectComplexArticles(
   const stmts: InStatement[] = [];
   const now = nowIso();
 
+  let reachedCap = false; // 가격 오름차순(order=prc) — 10억 도달 시 이후 페이지 수집 중단
   for (let page = 1; page <= MAX_ARTICLE_PAGES; page++) {
     const { articleList, isMoreData } = await fetchArticlesPage(complexNo, page);
     for (const a of articleList) {
       if (a.tradeTypeCode !== "A1") continue;
       if (seen.has(a.articleNo)) continue;
-      seen.add(a.articleNo);
       const price = parsePriceToManwon(a.dealOrWarrantPrc);
       if (!Number.isFinite(price) || price <= 0) continue;
+      if (price >= MAX_PRICE_MANWON) { reachedCap = true; break; } // 10억 이상 → 이하 매물 없음
+      seen.add(a.articleNo);
 
       const prev = existing.get(a.articleNo);
       if (prev === undefined) {
@@ -156,7 +161,7 @@ async function collectComplexArticles(
         }
       }
     }
-    if (!isMoreData) break;
+    if (reachedCap || !isMoreData) break;
   }
 
   // 이번 수집에서 안 보인 매물 비활성화 (거래완료/내림 추정)
