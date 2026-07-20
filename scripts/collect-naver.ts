@@ -35,6 +35,11 @@ const MAX_ARTICLE_PAGES = 60;
 // 호가 상한(만원). 이 값 이상 매물은 수집·저장하지 않는다 (기본 10억 = 100,000만원).
 export const MAX_PRICE_MANWON = Number(process.env.MAX_PRICE_MANWON || 100000);
 
+// 유예기간·하드삭제 기준(일). 안 보인 지 GRACE일 넘으면 비활성, DELETE일 넘으면 완전 삭제.
+const DEACTIVATE_GRACE_DAYS = Number(process.env.DEACTIVATE_GRACE_DAYS || 2);
+const HARD_DELETE_DAYS = Number(process.env.HARD_DELETE_DAYS || 30);
+const daysAgoIso = (days: number) => new Date(Date.now() - days * 86400_000).toISOString();
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const get = (flag: string) => {
@@ -94,7 +99,7 @@ interface ArticleRow {
 async function collectComplexArticles(
   db: Client,
   complexNo: string,
-  runStartIso: string
+  graceCutoffIso: string
 ): Promise<number> {
   // 기존 활성 매물 가격 (변동 감지용)
   const existing = new Map<string, number>();
@@ -164,10 +169,10 @@ async function collectComplexArticles(
     if (reachedCap || !isMoreData) break;
   }
 
-  // 이번 수집에서 안 보인 매물 비활성화 (거래완료/내림 추정)
+  // 유예기간(기본 2일) 이상 안 보인 매물만 비활성화 (일시적 수집 실패 오탐 방지)
   stmts.push({
     sql: `UPDATE articles SET is_active=0 WHERE complex_no=? AND is_active=1 AND last_seen_at < ?`,
-    args: [complexNo, runStartIso],
+    args: [complexNo, graceCutoffIso],
   });
 
   if (stmts.length > 0) await db.batch(stmts, "write");
@@ -221,6 +226,7 @@ async function main() {
   await ensureSchema(db);
 
   const runStartIso = nowIso();
+  const graceCutoffIso = daysAgoIso(DEACTIVATE_GRACE_DAYS); // 이보다 오래 안 보이면 비활성
   const runRs = await db.execute({
     sql: `INSERT INTO collect_runs (kind, started_at, status) VALUES ('naver', ?, 'running') RETURNING id`,
     args: [runStartIso],
@@ -277,16 +283,16 @@ async function main() {
       if (opts.maxComplexes) withDeals = withDeals.slice(0, opts.maxComplexes);
 
       for (const c of withDeals) {
-        const n = await collectComplexArticles(db, c.complexNo, runStartIso);
+        const n = await collectComplexArticles(db, c.complexNo, graceCutoffIso);
         totalArticles += n;
       }
-      // 매물이 0이 된 단지의 잔여 활성 매물 정리
+      // 매물이 0이 된 단지도 유예기간 지난 것만 비활성화
       const zeroDeal = complexes.filter((c) => (c.dealCount ?? 0) === 0);
       if (zeroDeal.length > 0) {
         await db.batch(
           zeroDeal.map((c) => ({
             sql: `UPDATE articles SET is_active=0 WHERE complex_no=? AND is_active=1 AND last_seen_at < ?`,
-            args: [c.complexNo, runStartIso],
+            args: [c.complexNo, graceCutoffIso],
           })),
           "write"
         );
@@ -303,6 +309,19 @@ async function main() {
     }
 
     await updateAskStats(db);
+
+    // 하드 삭제: HARD_DELETE_DAYS(기본 30일) 이상 안 보인 매물은 완전 삭제 (로컬·이력 정리)
+    const deleteCutoffIso = daysAgoIso(HARD_DELETE_DAYS);
+    await db.execute({
+      sql: `DELETE FROM article_price_history WHERE article_no IN
+              (SELECT article_no FROM articles WHERE last_seen_at < ?)`,
+      args: [deleteCutoffIso],
+    });
+    const del = await db.execute({
+      sql: `DELETE FROM articles WHERE last_seen_at < ?`,
+      args: [deleteCutoffIso],
+    });
+    if (Number(del.rowsAffected) > 0) console.log(`하드 삭제(30일+ 미노출): ${del.rowsAffected}건`);
 
     await db.execute({
       sql: `UPDATE collect_runs SET finished_at=?, status='success', detail=? WHERE id=?`,
