@@ -38,6 +38,9 @@ export function hasD1Config(): boolean {
   return readConfig() !== null;
 }
 
+/** D1 무료 일일 쓰기 한도 초과 — 당일 재시도 무의미, 동기화를 정상 중단시킨다 */
+export class D1WriteLimitError extends Error {}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function isTransient(msg: string): boolean {
@@ -78,6 +81,9 @@ export class D1HttpClient {
         });
         if (!res.ok) {
           const text = await res.text();
+          if (/daily row write limit|free tier daily/i.test(text)) {
+            throw new D1WriteLimitError(text.slice(0, 200));
+          }
           throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
         }
         const json = (await res.json()) as {

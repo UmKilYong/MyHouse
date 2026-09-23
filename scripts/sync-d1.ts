@@ -13,7 +13,7 @@
  */
 import { loadEnv } from "./lib/env";
 import { getDb } from "../src/db/client";
-import { getD1 } from "../src/db/d1-http";
+import { getD1, D1WriteLimitError } from "../src/db/d1-http";
 
 const MAX_SQL_BYTES = 90_000; // 문장 100KB 제한 여유
 const DEFAULT_BUDGET = 90_000; // D1 무료 쓰기 10만/일 여유
@@ -140,6 +140,7 @@ async function main() {
   let totalUpserts = 0;
   let totalDeletes = 0;
 
+  try {
   for (const t of tableConfigs()) {
     if (budget <= 0) {
       console.log(`예산 소진 — ${t.name} 이후는 다음 실행에서`);
@@ -267,6 +268,11 @@ async function main() {
     );
   }
 
+  } catch (e) {
+    if (e instanceof D1WriteLimitError) {
+      console.log("D1 일일 쓰기 한도 도달 — 동기화 중단(내일 UTC 자정 리셋 후 이어감)");
+    } else { throw e; }
+  }
   console.log(`동기화 완료: upsert ${totalUpserts}, delete ${totalDeletes}, 잔여 예산 ${budget}`);
 }
 
